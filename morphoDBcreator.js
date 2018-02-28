@@ -9,7 +9,7 @@ let fileSize = 0
 
 /*
 
-This function (createHashIndex) was borrrowed from https://gist.github.com/alexhawkins/48d7fd31af6ed00e5c60
+This function (createHashIndex) was borrowed from https://gist.github.com/alexhawkins/48d7fd31af6ed00e5c60
 Thanks to alexhawkins 
 
 */
