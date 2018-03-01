@@ -177,7 +177,7 @@ async function main () {
       fs.writeFileSync(process.argv[3], v, { flag: 'a' })
     }
 
-    const pre = `Legend:\n= - left part is equal to right part\n+ - left part already processed\nw - not allowed witespace\n__________\n\n`
+    const pre = `Legend:\n= - left part is equal to right part\n+ - left part already processed\nw - not allowed whitespace\n__________\n\n`
 
     fs.writeFileSync('ignored.txt', pre, { encoding: 'utf8', flag: 'w' })
 
