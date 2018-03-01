@@ -15,7 +15,7 @@ try {
   console.log()
 
   {
-    const word = 'vraagt'
+    const word = 'zygoten'
     console.time('test2')
     const baseform = morphodb.getBaseForm('morpho_nl.data', word)
 

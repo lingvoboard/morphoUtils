@@ -9,8 +9,8 @@ let fileSize = 0
 
 /*
 
-This function (createHashIndex) was borrowed from https://gist.github.com/alexhawkins/48d7fd31af6ed00e5c60
-Thanks to alexhawkins 
+This function (createHashIndex) was borrrowed from https://gist.github.com/alexhawkins/48d7fd31af6ed00e5c60
+Thanks to alexhawkins
 
 */
 function createHashIndex (key, max) {
@@ -55,11 +55,11 @@ function updateProgressBar () {
   }
 }
 
+const tab = Object.create(null)
+tab.data = Object.create(null)
 const arr1 = []
 const arr2 = []
 const ignored = []
-
-const filter = Object.create(null)
 
 function readfile (inputfile, encoding) {
   let lineCount = 0
@@ -86,20 +86,17 @@ function readfile (inputfile, encoding) {
           })
 
           if (word && root) {
-            if (
-              word !== root &&
-              !/\s/.test(word) &&
-              filter[word] === undefined
-            ) {
-              arr1.push(`${word}\t${root}`)
-              filter[word] = 0
+            if (word !== root && !/\s/.test(word)) {
+              if (tab.data[word] === undefined) {
+                tab.data[word] = [root]
+              } else {
+                tab.data[word].push(root)
+              }
             } else {
               if (word === root) {
                 ignored.push(`=: ${line}`)
-              } else if (/\s/.test(word)) {
-                ignored.push(`w: ${line}`)
               } else {
-                ignored.push(`+: ${line}`)
+                ignored.push(`w: ${line}`)
               }
             }
           }
@@ -126,14 +123,23 @@ async function main () {
     console.log('Reading input file:')
     await readfile(process.argv[2], encoding)
     process.stdout.write('Creating database...')
+
+    for (const k in tab.data) {
+      const unique = [...new Set(tab.data[k])]
+      arr1.push(`${k}\t${unique.join(' ')}`)
+    }
+
+    delete tab.data
+
     arr2.length = arr1.length
+    arr2.fill('')
 
     for (const v of arr1) {
       const i = createHashIndex(v.split('\t')[0], arr1.length)
-      if (!arr2[i]) arr2[i] = []
-      arr2[i].push(v)
+      arr2[i] = `${arr2[i]}\n${v}`.trim()
     }
 
+    arr1.length = 0
     const arr3 = []
     let offsetAfterHashTable = 0
     let HashTableRowSize = 0
@@ -141,43 +147,52 @@ async function main () {
     for (let i = 0; i < arr2.length; i++) {
       if (arr2[i] && arr2[i].length > 0) {
         let s
-        if (arr2[i].length === 1) {
-          s = arr2[i][0].split('\t')[1]
+        if (arr2[i].indexOf('\n') === -1) {
+          s = arr2[i].split('\t')[1]
         } else {
-          s = arr2[i].join('\n')
+          s = arr2[i]
         }
 
         const buf1 = Buffer.from(s, 'utf8')
         const offset = offsetAfterHashTable
         const length = buf1.byteLength
         offsetAfterHashTable += buf1.byteLength
-        arr3.push(buf1)
+        arr3.push(s)
         const buf2 = Buffer.from(`${offset}\t${length}`)
-        arr2[i] = buf2
-        if (buf2.byteLength > HashTableRowSize) { HashTableRowSize = buf2.byteLength }
+        arr2[i] = `${offset}\t${length}`
+        if (buf2.byteLength > HashTableRowSize) {
+          HashTableRowSize = buf2.byteLength
+        }
       } else {
-        arr2[i] = Buffer.from('', 'utf8')
+        arr2[i] = ''
       }
     }
 
     {
-      const buf1 = Buffer.from(`${arr1.length.toString()}\t${HashTableRowSize}`)
+      const buf1 = Buffer.from(`${arr2.length.toString()}\t${HashTableRowSize}`)
       const buf2 = Buffer.alloc(64)
       buf1.copy(buf2)
       fs.writeFileSync(process.argv[3], buf2, { flag: 'w' })
     }
 
-    for (let v of arr2) {
-      const buf = Buffer.alloc(HashTableRowSize)
-      v.copy(buf)
+    for (const v of arr2) {
+      const buf1 = Buffer.alloc(HashTableRowSize)
+      const buf2 = Buffer.from(v, 'utf8')
+      buf2.copy(buf1)
+      fs.writeFileSync(process.argv[3], buf1, { flag: 'a' })
+    }
+
+    const count = arr2.length
+    arr2.length = 0
+
+    for (let v of arr3) {
+      const buf = Buffer.from(v, 'utf8')
       fs.writeFileSync(process.argv[3], buf, { flag: 'a' })
     }
 
-    for (let v of arr3) {
-      fs.writeFileSync(process.argv[3], v, { flag: 'a' })
-    }
-
-    const pre = `Legend:\n= - left part is equal to right part\n+ - left part already processed\nw - not allowed whitespace\n__________\n\n`
+    let pre = ''
+    if (ignored.length > 0)
+      pre = `Legend:\n= - left part is equal to right part\nw - not allowed whitespace\n__________\n\n`
 
     fs.writeFileSync('ignored.txt', pre, { encoding: 'utf8', flag: 'w' })
 
@@ -187,13 +202,16 @@ async function main () {
 
     process.stdout.write('\rCreating database... Done\n')
 
-    console.log('Added: ' + arr1.length)
+    console.log('Added: ' + count)
     console.log('Ignored: ' + ignored.length)
 
     const hrend = process.hrtime(hrstart)
     console.log(
       `\n\nExecution time: ${hrend[0]}.${Math.floor(hrend[1] / 1000000)}\n`
     )
+
+    process.stdout.write('Memory Usage: ')
+    console.log(process.memoryUsage().rss / 1024 / 1024)
   } catch (err) {
     console.log(err)
   }

@@ -29,12 +29,12 @@ node test.js
 
 Output:
 honden => hond
-test1: 4.091ms
+test1: 4.723ms
 
-vraagt => vragen
-test2: 0.198ms
+zygoten => zygoot zygote
+test2: 0.234ms
 
 afknabbelt => afknabbelen
-test3: 0.135ms
+test3: 0.126ms
 
 ```
