@@ -1,6 +1,6 @@
 'use strict'
 
-const morphodb = require('./morhoDBengine.js')
+const morphodb = require('./morphoDBengine.js')
 
 try {
   {
