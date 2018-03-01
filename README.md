@@ -3,7 +3,7 @@ morphoUtils
 
 morphoDBcreator.js - Node.js script for creating database.
 
-morhoDBengine.js - Node.js module for accessing database.
+morphoDBengine.js - Node.js module for accessing database.
 
 
 ## Usage
