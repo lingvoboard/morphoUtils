@@ -12,14 +12,13 @@ morphoDBengine.js - Node.js module for accessing database.
 
 ```
 Command line:
-node morphoDBcreator.js morpho_nl.txt morpho_nl.data
+node morphoDBcreator.js morpho_nl.txt
 
 Output:
-morpho_nl.data
-ignored.txt
+morpho_nl.blocks.dat
+morpho_nl.ranges.dat
 
 ```
-![Screenshot1:](https://s10.postimg.org/cwd472q4p/Screenshot_2018-02-28_21-49-04.png)
 
 ### Accessing database
 
@@ -29,12 +28,13 @@ node test.js
 
 Output:
 honden => hond
-test1: 4.723ms
+test1: 6.597ms
 
-zygoten => zygoot zygote
-test2: 0.234ms
+zygoten => zygoot, zygote
+test2: 10.921ms
 
 afknabbelt => afknabbelen
-test3: 0.126ms
+test3: 0.487ms
 
 ```
+<hr>

@@ -3,6 +3,8 @@
 const hrstart = process.hrtime()
 const fs = require('fs')
 const readline = require('readline')
+const zlib = require('zlib')
+const path = require('path')
 
 let byteCount = 0
 let fileSize = 0
@@ -78,29 +80,23 @@ function readfile (inputfile, encoding) {
         lineCount++
         if (lineCount === 1) line = line.replace(/^\uFEFF/, '')
 
-        const arr = line.trim().split('\t')
+        const arr = line.trim().split('\t').map(el => el.trim()).filter(Boolean)
 
         if (arr.length === 2) {
-          const [word, root] = arr.map(el => {
-            return el.trim().toLowerCase()
-          })
+          
+          const [word, data] = arr
+          const key = word.toLowerCase()
 
-          if (word && root) {
-            if (word !== root && !/\s/.test(word)) {
-              if (tab.data[word] === undefined) {
-                tab.data[word] = [root]
-              } else {
-                tab.data[word].push(root)
-              }
-            } else {
-              if (word === root) {
-                ignored.push(`=: ${line}`)
-              } else {
-                ignored.push(`w: ${line}`)
-              }
-            }
+          if (tab.data[key] === undefined) {
+            tab.data[key] = `${word}\t${data}`
+          } else {
+            tab.data[key] += `\r${word}\t${data}`
           }
+
+        } else {
+          ignored.push(`Line ${lineCount}: ${line}`)
         }
+
       })
       .on('close', () => {
         clearInterval(updater)
@@ -125,8 +121,8 @@ async function main () {
     process.stdout.write('Creating database...')
 
     for (const k in tab.data) {
-      const unique = [...new Set(tab.data[k])]
-      arr1.push(`${k}\t${unique.join(' ')}`)
+      const unique = [...new Set(tab.data[k].split('\r'))]
+      arr1.push(`${k}\t${unique.join('\r')}`)
     }
 
     delete tab.data
@@ -141,65 +137,84 @@ async function main () {
 
     arr1.length = 0
     const arr3 = []
-    let offsetAfterHashTable = 0
-    let HashTableRowSize = 0
+    const arr4 = []  
+
+    let offset = 0
+
+    const res = path.parse(process.argv[2])
+    const ranges_file = `${res.name}.ranges.dat`
+    const blocks_file = `${res.name}.blocks.dat`
+
+    fs.writeFileSync(blocks_file, '', { flag: 'w' })
 
     for (let i = 0; i < arr2.length; i++) {
-      if (arr2[i] && arr2[i].length > 0) {
-        let s
-        if (arr2[i].indexOf('\n') === -1) {
-          s = arr2[i].split('\t')[1]
-        } else {
-          s = arr2[i]
-        }
 
-        const buf1 = Buffer.from(s, 'utf8')
-        const offset = offsetAfterHashTable
-        const length = buf1.byteLength
-        offsetAfterHashTable += buf1.byteLength
-        arr3.push(s)
-        const buf2 = Buffer.from(`${offset}\t${length}`)
-        arr2[i] = `${offset}\t${length}`
-        if (buf2.byteLength > HashTableRowSize) {
-          HashTableRowSize = buf2.byteLength
+        arr3.push(arr2[i])
+
+        if (arr3.length === 100) {
+
+          const buf1 = zlib.deflateRawSync(arr3.join('\x00'))
+          fs.writeFileSync(blocks_file, buf1, { flag: 'a' })
+          const length = buf1.byteLength
+          arr3.length = 0
+          arr4.push(`${offset},${length}`)
+
+          offset += length
         }
-      } else {
-        arr2[i] = ''
+    
+    }
+
+    if (arr3.length > 0) {
+
+        const buf1 = zlib.deflateRawSync(arr3.join('\x00'))
+        fs.writeFileSync(blocks_file, buf1, { flag: 'a' })
+        const length = buf1.byteLength
+        arr3.length = 0
+        arr4.push(`${offset},${length}`)
+
+    }
+    
+
+    let HashTableRowSize = 0
+
+    for (const v of arr4) {
+      const buf = Buffer.from(v, 'utf8')
+      if (buf.byteLength > HashTableRowSize) {
+        HashTableRowSize = buf.byteLength
       }
     }
 
     {
-      const buf1 = Buffer.from(`${arr2.length.toString()}\t${HashTableRowSize}`)
+      const buf1 = Buffer.from(`${arr4.length}\t${HashTableRowSize}\t${arr2.length.toString()}`)
       const buf2 = Buffer.alloc(64)
       buf1.copy(buf2)
-      fs.writeFileSync(process.argv[3], buf2, { flag: 'w' })
+      fs.writeFileSync(ranges_file, buf2, { flag: 'w' })
     }
 
-    for (const v of arr2) {
+
+    for (const v of arr4) {
       const buf1 = Buffer.alloc(HashTableRowSize)
       const buf2 = Buffer.from(v, 'utf8')
       buf2.copy(buf1)
-      fs.writeFileSync(process.argv[3], buf1, { flag: 'a' })
+      fs.writeFileSync(ranges_file, buf1, { flag: 'a' })
     }
 
     const count = arr2.length
     arr2.length = 0
 
-    for (let v of arr3) {
-      const buf = Buffer.from(v, 'utf8')
-      fs.writeFileSync(process.argv[3], buf, { flag: 'a' })
+    if (ignored.length > 0) {
+      fs.writeFileSync('ignored.txt', '', { encoding: 'utf8', flag: 'w' })
+    } else {
+      try {
+        fs.unlinkSync('ignored.txt')
+      } catch(e) {
+
+      }
     }
-
-    let pre = ''
-    if (ignored.length > 0)
-      pre = `Legend:\n= - left part is equal to right part\nw - not allowed whitespace\n__________\n\n`
-
-    fs.writeFileSync('ignored.txt', pre, { encoding: 'utf8', flag: 'w' })
 
     for (let v of ignored) {
       fs.writeFileSync('ignored.txt', v + '\n', { encoding: 'utf8', flag: 'a' })
     }
-
     process.stdout.write('\rCreating database... Done\n')
 
     console.log('Added: ' + count)
@@ -217,9 +232,10 @@ async function main () {
   }
 }
 
-if (process.argv.length === 4 || fileExists(process.argv[2])) {
+if (process.argv.length === 3 || fileExists(process.argv[2])) {
   main()
 } else {
   console.log('Invalid command line.')
   process.exit()
 }
+
