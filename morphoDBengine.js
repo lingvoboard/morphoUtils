@@ -20,6 +20,16 @@ function createHashIndex (key, max) {
   return Math.abs(hash % max)
 }
 
+function shuffle (arr) {
+  var j, x, i
+  for (i = arr.length; i; i--) {
+    j = Math.floor(Math.random() * i)
+    x = arr[i - 1]
+    arr[i - 1] = arr[j]
+    arr[j] = x
+  }
+}
+
 function readrangesSync (indexfile, word) {
   word = word.trim().toLowerCase()
 
@@ -119,7 +129,7 @@ function readranges (ranges_file, word) {
       const index = createHashIndex(word.toLowerCase(), blocks_max)
       const range = Math.floor(index / 100)
 
-      if (range > ranges_max) reject({message: 'Out of Range'})
+      if (range > ranges_max) reject({ message: 'Out of Range' })
 
       const ranges_offset = range ? HashTableRowSize * range + 64 : 64
       const buf2 = Buffer.alloc(HashTableRowSize)
@@ -151,7 +161,7 @@ function readranges (ranges_file, word) {
 
 function getdata (ranges_file, blocks_file, word, dicinfo) {
   return new Promise((resolve, reject) => {
-    if (!ranges_file || !blocks_file || !word) resolve({data:[]})
+    if (!ranges_file || !blocks_file || !word) resolve({ data: [] })
 
     readranges(ranges_file, word)
       .then(ranges_data => {
@@ -181,16 +191,16 @@ function getdata (ranges_file, blocks_file, word, dicinfo) {
               }
             }
 
-            resolve({data:res, word:word, dicinfo:dicinfo})
+            resolve({ data: res, word: word, dicinfo: dicinfo })
           })
           .catch(err => {
             console.log(err)
-            resolve({data:[]})
+            resolve({ data: [] })
           })
       })
       .catch(err => {
         console.log(err)
-        resolve({data:[]})
+        resolve({ data: [] })
       })
   })
 }
@@ -228,10 +238,125 @@ function getdataSync (ranges_file, blocks_file, word, dicinfo) {
     }
   }
 
-  return {data:res, word:word, dicinfo:dicinfo}
+  return { data: res, word: word, dicinfo: dicinfo }
+}
+
+function getRandomData (ranges_file, blocks_file, dicinfo) {
+  return new Promise((resolve, reject) => {
+    if (!ranges_file || !blocks_file) resolve({ data: [] })
+
+    fs.open(ranges_file, 'r', (err, fd) => {
+      if (err) {
+        console.log(err)
+        resolve({ data: [] })
+      }
+
+      const buf1 = Buffer.alloc(64)
+
+      fs.read(fd, buf1, 0, 64, 0, (err, bytesRead, buf2) => {
+        if (err) {
+          console.log(err)
+          resolve({ data: [] })
+        }
+
+        process1(buf2, fd)
+      })
+    })
+
+    function process1 (buf1, fd) {
+      const [ranges_max, HashTableRowSize, blocks_max] = buf1
+        .toString()
+        .split('\t')
+        .map(el => {
+          return parseInt(el)
+        })
+
+      const range = Math.floor(Math.random() * ranges_max)
+      const ranges_offset = range ? HashTableRowSize * range + 64 : 64
+      const buf2 = Buffer.alloc(HashTableRowSize)
+
+      fs.read(
+        fd,
+        buf2,
+        0,
+        HashTableRowSize,
+        ranges_offset,
+        (err, bytesRead, buf3) => {
+          if (err) {
+            console.log(err)
+            resolve({ data: [] })
+          }
+
+          const [offset, length] = buf3
+            .toString()
+            .split(',')
+            .map(el => parseInt(el))
+
+          fs.close(fd, err => {
+            if (err) {
+              console.log(err)
+              resolve({ data: [] })
+            }
+
+            process2({ offset: offset, length: length })
+          })
+        }
+      )
+    }
+
+    function process2 (ranges_data) {
+      getblock(blocks_file, ranges_data.offset, ranges_data.length)
+        .then(block => {
+          const arr = block.split('\x00')
+
+          shuffle(arr)
+
+          for (const v of arr) {
+            if (v !== '') {
+              var cell = v.split('\n')
+              break
+            }
+          }
+
+          if (!cell) {
+            console.log('Empty block')
+            resolve({ data: [] })
+          }
+
+          shuffle(cell)
+
+          let res = []
+
+          for (const v of cell) {
+            const r = v.split('\r').map(el => {
+              const arr = el.split('\t')
+              if (arr.length === 3) {
+                return `${arr[1]}\t${arr[2]}`
+              } else {
+                return el
+              }
+            })
+
+            for (const v of r) {
+              res.push(v)
+            }
+          }
+
+          shuffle(res)
+          const [word, artinfo] = res[0].split('\t')
+
+          resolve({ data: [artinfo], word: word, dicinfo: dicinfo })
+        })
+        .catch(err => {
+          console.log(err)
+          resolve({ data: [] })
+        })
+    }
+  })
 }
 
 module.exports = {
   getdata: getdata,
-  getdataSync: getdataSync
+  getdataSync: getdataSync,
+  getRandomData: getRandomData
 }

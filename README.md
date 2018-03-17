@@ -23,18 +23,17 @@ morpho_nl.ranges.dat
 ### Accessing database
 
 ```
-Command line:
-node test.js
-
-Output:
 honden => hond
-test1: 6.597ms
+test1: 6.515ms
 
 zygoten => zygoot, zygote
-test2: 10.921ms
+test2: 10.397ms
 
 afknabbelt => afknabbelen
-test3: 0.487ms
+test3: 0.463ms
+
+{ data: [ 'klassiek' ], word: 'klassiekst', dicinfo: undefined }
+test4: 6.257ms
 
 ```
 <hr>
