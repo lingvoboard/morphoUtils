@@ -23,6 +23,10 @@ morpho_nl.ranges.dat
 ### Accessing database
 
 ```
+Command line:
+node test.js
+
+Output:
 honden => hond
 test1: 6.515ms
 
